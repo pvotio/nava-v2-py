@@ -1,0 +1,14 @@
+# Playwright & headless Chromium
+playwright==1.44.0
+
+# Azure SDKs (worker reads/writes payloads + PDFs)
+azure-identity==1.16.0
+azure-storage-blob==12.20.0
+azure-servicebus==7.15.0
+
+# SQL + async driver
+sqlalchemy==2.0.29
+aioodbc==0.5.0           # async ODBC driver
+
+# Template rendering
+jinja2>=3.1,<4

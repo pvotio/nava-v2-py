@@ -1,0 +1,123 @@
+###############################################################################
+# deployment.yaml – FastAPI “edge” pods
+###############################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navav2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: navav2
+  template:
+    metadata:
+      labels:
+        app: navav2
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: navav2-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: templates
+          emptyDir: {}
+      initContainers:
+        - name: git-sync
+          image: alpine/git:2.43
+          args:
+            - clone
+            - --depth=1
+            - --filter=blob:none          # ↓ faster cold-start
+            - --single-branch
+            - https://$(GIT_USERNAME):$(GIT_PASSWORD)@dev.azure.com/Org/Templates/_git/pdf-tpls
+            - /workspace/templates
+          envFrom:
+            - secretRef:
+                name: azdo-pat
+          volumeMounts:
+            - name: templates
+              mountPath: /workspace/templates
+      containers:
+        - name: navav2
+          image: <ACR_NAME>.azurecr.io/navav2-api:1.0.1      # patched by kustomize
+          command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3000"]
+          ports:
+            - containerPort: 3000
+          env:
+            - name: AZURE_CLIENT_ID                          # ← required for AKS workload identity
+              valueFrom:
+                secretKeyRef:
+                  name: navav2-secrets
+                  key: workload-id-client-id
+            - name: SQL_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: navav2-secrets
+                  key: sql-server
+            - name: SQL_DB
+              value: "PdfCore"
+            - name: AZURE_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: navav2-secrets
+                  key: tenant-id
+            - name: AZURE_AD_AUDIENCE
+              value: "api://navav2"
+            - name: AUTH0_DOMAIN
+              valueFrom:
+                secretKeyRef:
+                  name: navav2-secrets
+                  key: auth0-domain
+            - name: AUTH0_API_AUDIENCE
+              value: "https://pdf.example.com"
+            - name: SB_NAMESPACE
+              value: "nava-pdf-sb"
+            - name: SB_QUEUE
+              value: "pdf-jobs"
+            - name: STORAGE_URL
+              value: "https://<your-storage-account>.blob.core.windows.net"
+            - name: PAYLOAD_CONTAINER
+              value: "pdfpayloads"
+            - name: SCRIPTS_DIR
+              value: /workspace/templates
+            - name: HMAC_SECRET_B64                          
+              valueFrom:
+                secretKeyRef:
+                  name: hmac-secrets
+                  key: hmac-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+              ephemeral-storage: 100Mi     # new – tmpfs writes on RO root-fs
+            limits:
+              cpu: 500m
+              memory: 512Mi
+              ephemeral-storage: 200Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3000
+            initialDelaySeconds: 25        # gave git-sync & MSI more headroom
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: templates
+              mountPath: /workspace/templates

@@ -1,0 +1,18 @@
+###############################################################################
+# service.yaml – internal service for FastAPI edge
+###############################################################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: navav2-svc
+  labels:
+    app: navav2
+spec:
+  type: ClusterIP
+  selector:
+    app: navav2                    # must match deployment.template.metadata.labels.app
+  ports:
+    - name: http
+      port: 80                     # what the Ingress forwards to
+      targetPort: 3000             # containerPort defined in deployment
+      protocol: TCP

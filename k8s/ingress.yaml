@@ -1,0 +1,48 @@
+###############################################################################
+# ingress.yaml – HTTPS entry for navav2 FastAPI edge
+###############################################################################
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: navav2
+  namespace: default
+  labels:
+    app.kubernetes.io/name: navav2
+  annotations:
+    # ─── Controller & TLS termination ───────────────────────────────────────
+    kubernetes.io/ingress.class: nginx          # ← swap to azure/application-gateway if using AGIC
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # ─── Security / hardening ──────────────────────────────────────────────
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/hsts: "true"
+    nginx.ingress.kubernetes.io/hsts-max-age: "63072000"  # 2 years
+    nginx.ingress.kubernetes.io/content-security-policy: |
+      default-src 'none';
+      frame-ancestors 'none';
+      base-uri 'self';
+      img-src data: https:;
+      style-src 'self' https:;
+      font-src 'self' https:;
+      script-src 'self';
+    # ─── Misc tweaks ───────────────────────────────────────────────────────
+    nginx.ingress.kubernetes.io/proxy-body-size: 10m          # PDF payloads are small
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "90"      # leave head-room for cold renders
+spec:
+  ingressClassName: nginx                 # keep in sync with annotation above
+  tls:
+    - hosts:
+        - pdf.example.com                 # <- change
+      secretName: navav2-tls
+  rules:
+    - host: pdf.example.com               # <- change
+      http:
+        paths:
+          # Catch-all FastAPI root
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: navav2-svc          # service.yaml should point port 3000 → targetPort 3000
+                port:
+                  number: 80

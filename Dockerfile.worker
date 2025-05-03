@@ -1,0 +1,28 @@
+# Dockerfile.worker
+# Playwright + Python + ODBC for PDF rendering
+
+FROM mcr.microsoft.com/playwright/python:v1.51.0-jammy AS worker
+
+# Install MS-ODBC driver
+RUN apt-get update && \
+    ACCEPT_EULA=Y apt-get install -y gnupg curl && \
+    curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
+    curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list \
+         > /etc/apt/sources.list.d/mssql-release.list && \
+    apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/app
+
+# Install only worker deps
+COPY requirements-worker.txt ./
+RUN pip install --no-cache-dir -r requirements-worker.txt && \
+    playwright install --with-deps chromium
+
+# Copy worker code & templates/helpers
+COPY worker.py .
+COPY templates/ ./templates
+COPY helpers/ ./helpers
+
+# No ports to expose; worker runs as a job
+CMD ["python", "worker.py"]

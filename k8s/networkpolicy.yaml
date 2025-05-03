@@ -1,0 +1,79 @@
+###############################################################################
+# networkpolicy.yaml
+###############################################################################
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: navav2-default-deny
+  namespace: apps-public
+spec:
+  podSelector: {}                      # ← all pods in namespace
+  policyTypes: ["Ingress", "Egress"]   # deny everything first
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Ingress: allow traffic from the ingress controller to API pods only
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: navav2-api-ingress
+  namespace: apps-public
+spec:
+  podSelector:
+    matchLabels:
+      app: navav2                       # API deployment only
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        # ingress-nginx in its own namespace
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000                    # FastAPI port inside pod
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Egress: allow DNS + HTTPS + SQL for *all* navav2 pods (api & worker)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: navav2-egress
+  namespace: apps-public
+spec:
+  podSelector:
+    matchLabels:
+      # all pods that are part of the app (label set by kustomize commonLabels)
+      app.kubernetes.io/part-of: navav2
+  policyTypes: ["Egress"]
+  egress:
+    # 1) DNS to kube-dns
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # 2) HTTPS / TLS endpoints (Azure, Auth0, etc.)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 443
+          protocol: TCP
+    # 3) Azure SQL Server (TCP 1433)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 1433
+          protocol: TCP

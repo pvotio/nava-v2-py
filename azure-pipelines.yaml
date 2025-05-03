@@ -1,0 +1,48 @@
+# azure-pipelines.yml
+
+trigger:
+  branches: [ main ]
+
+variables:
+  tag: "$(Build.BuildNumber)"          # eg 2025.04.26.15
+
+resources:
+  containers:
+    - container: acr
+      type: acr
+      azureSubscription: "pa-azure-container-registry"   # service connection
+      repository: "<ACR_NAME>.azurecr.io"                # registry root
+
+stages:
+- stage: BuildAndPush
+  displayName: Build & push images
+  jobs:
+    - job: build_api
+      displayName: Build API image
+      pool: { vmImage: ubuntu-latest }
+      steps:
+        - task: Docker@2
+          displayName: Build & push API
+          inputs:
+            containerRegistry: acr
+            repository: "navav2-py-api"
+            command: buildAndPush
+            dockerfile: "docker/Dockerfile.api"
+            tags: |
+              latest
+              $(tag)
+
+    - job: build_worker
+      displayName: Build Worker image
+      pool: { vmImage: ubuntu-latest }
+      steps:
+        - task: Docker@2
+          displayName: Build & push Worker
+          inputs:
+            containerRegistry: acr
+            repository: "navav2-py-worker"
+            command: buildAndPush
+            dockerfile: "docker/Dockerfile.worker"
+            tags: |
+              latest
+              $(tag)

@@ -1,0 +1,28 @@
+###############################################################################
+# poddisruptionbudget.yaml – navav2 FastAPI edge
+###############################################################################
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: navav2-pdb
+  namespace: apps-public
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: navav2
+
+---
+###############################################################################
+# poddisruptionbudget.yaml – navav2-worker renderer
+###############################################################################
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: navav2-worker-pdb
+  namespace: apps-public
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: navav2-worker

@@ -1,0 +1,19 @@
+# Dockerfile.api
+# Slim Python image for the FastAPI API
+
+FROM python:3.13.3-slim-bullseye AS api
+
+WORKDIR /opt/app
+
+# Install only API deps
+COPY requirements-api.txt ./
+RUN pip install --no-cache-dir -r requirements-api.txt
+
+# Copy API code
+COPY app/ ./app
+COPY auth.py .
+COPY db.py .
+COPY deps.py .
+
+EXPOSE 8080
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

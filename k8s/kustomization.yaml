@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# ── Base resources ────────────────────────────────────────────────────────
+resources:
+  # core workloads
+  - deployment.yaml
+  - worker-deployment.yaml
+  # autoscaling
+  - hpa-api.yaml
+  - hpa-worker.yaml
+  # supporting infra
+  - service.yaml
+  - ingress.yaml
+  - service-account.yaml
+  - poddisruptionbudget.yaml
+  - networkpolicy.yaml
+  # secrets / config
+  - azdo-pat-secret.yaml            # PAT for git-sync
+
+# ── Common labels (optional, keeps things tidy in kubectl get) ────────────
+commonLabels:
+  app.kubernetes.io/part-of: navav2
+
+# ── Images that can be patched at build time (optional) ───────────────────
+images:
+  - name: <ACR_NAME>.azurecr.io/navav2-api
+    newTag: "1.0.1"
+  - name: <ACR_NAME>.azurecr.io/navav2-worker
+    newTag: "1.0.1"
+
+# ── Replacements / patches can go here if needed ──────────────────────────
+# patchesStrategicMerge:
+#   - some-patch.yaml
